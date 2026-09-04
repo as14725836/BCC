@@ -19,7 +19,7 @@ jobs:
           TZ=Asia/Shanghai
 
           # 下载 README 中的 Archlinux Rootfs
-          wget -O archlinux-latest.tar.xz https://github.com/as14725836/BCC/releases/download/archlinux-latest/archlinux-latest.tar.xz
+          wget -O archlinux-latest.tar.xz https://github.com/as14725836/BCC/releases/tag/archlinuxarm-latest
           sudo tar -xf archlinux-latest.tar.xz -C /tmp
 
           DATE_STR=$(TZ=$TZ date '+%Y-%m-%d %H:%M:%S %Z')
