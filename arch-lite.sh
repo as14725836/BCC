@@ -9,14 +9,29 @@ sudo tar --strip-components=1 -xf $pkgName -C "$rootfsPath" && rm -rf $pkgName
 
 sudo cp -r /etc/hostname "$rootfsPath/etc/hostname"
 sudo cp -r /etc/hosts "$rootfsPath/etc/hosts"
-sudo cp -r /etc/nsswitch.conf "$rootfsPath/etc/nsswitch.conf"
+# 不要直接复制宿主机 nsswitch.conf：Ubuntu 的 hosts 行含 systemd-resolved 的
+# `resolve [!UNAVAIL=return]` NSS 模块，chroot 内无 libnss_resolve 会导致 DNS 全挂。
+# 改为写入一份不含 resolve 模块的干净配置。
+sudo tee "$rootfsPath/etc/nsswitch.conf" >/dev/null <<'EOF'
+passwd:         files systemd
+group:          files systemd
+shadow:         files systemd
+gshadow:        files systemd
+hosts:          files dns myhostname
+networks:       files
+protocols:      db files
+services:       db files
+ethers:         db files
+rpc:            db files
+EOF
 
-# 先备份原始的 resolv.conf
-sudo cp "$rootfsPath/etc/resolv.conf" "$rootfsPath/etc/resolv.conf.backup"
+# 先备份原始的 resolv.conf（解引用符号链接，失败不致命）
+sudo cp -L "$rootfsPath/etc/resolv.conf" "$rootfsPath/etc/resolv.conf.backup" 2>/dev/null || true
 
-# GitHub Actions 的宿主机通常使用 systemd-resolved，
-# /etc/resolv.conf 里是 127.0.0.53，chroot 里用不了，强制改成公共 DNS
-sudo tee /home/runner/work/BCC/BCC/archlinux/etc/resolv.conf <<EOF
+# Arch rootfs 的 /etc/resolv.conf 常是指向 /run/systemd/resolve/stub-resolv.conf 的符号链接，
+# chroot 内 systemd-resolved 未运行会导致 DNS 失效；必须删除链接后写入真实文件。
+sudo rm -f "$rootfsPath/etc/resolv.conf"
+sudo tee "$rootfsPath/etc/resolv.conf" >/dev/null <<EOF
 nameserver 8.8.8.8
 nameserver 8.8.4.4
 nameserver 1.1.1.1
