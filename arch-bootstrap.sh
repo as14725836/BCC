@@ -24,7 +24,7 @@ set -e -u -o pipefail
 PACMAN_PACKAGES=(
   acl archlinux-keyring attr brotli bzip2 curl expat glibc gpgme libarchive
   libassuan libgpg-error libnghttp2 libnghttp3 libngtcp2 libseccomp libssh2 lzo openssl pacman pacman-mirrorlist xz zlib
-  krb5 e2fsprogs keyutils libidn2 libunistring libgcc libstdc%2B%2B lz4 libpsl icu libunistring zstd libxml2
+  krb5 e2fsprogs keyutils libidn2 libunistring libgcc libstdc++ lz4 libpsl icu libunistring zstd libxml2
 )
 BASIC_PACKAGES=(${PACMAN_PACKAGES[*]} filesystem base)
 EXTRA_PACKAGES=(coreutils bash grep gawk file tar gzip systemd sed)
@@ -150,7 +150,10 @@ install_pacman_packages() {
   debug "pacman package and dependencies: $BASIC_PACKAGES"
 
   for PACKAGE in $BASIC_PACKAGES; do
-    local FILE=$(echo "$LIST" | grep -m1 "^$PACKAGE-[[:digit:]].*\(\.gz\|\.xz\|\.zst\)$")
+    # 包名中的 '+' 在仓库索引里是 URL 编码 '%2B'（如 libstdc++ -> libstdc%2B%2B），
+    # 匹配/下载时需编码，但后续 chroot pacman 安装仍需真实包名。
+    local ENC_PACKAGE=${PACKAGE//+/%2B}
+    local FILE=$(echo "$LIST" | grep -m1 "^${ENC_PACKAGE}-[[:digit:]].*\(\.gz\|\.xz\|\.zst\)$")
     test "$FILE" || { debug "Error: cannot find package: $PACKAGE"; return 1; }
     local FILEPATH="$DOWNLOAD_DIR/$FILE"
 
