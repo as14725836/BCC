@@ -19,8 +19,8 @@ jobs:
           TZ=Asia/Shanghai
 
           # 下载 README 中的 Archlinux Rootfs
-          wget -O ubuntu2404-latest.tar.xz https://github.com/as14725836/BCC/releases/download/ubuntu2404-latest/ubuntu2404-latest.tar.xz
-          sudo tar -xf ubuntu2404-latest.tar.xz -C /tmp
+          wget -O ubuntu2404-latest.tar.xz https://github.com/as14725836/BCC/releases/download/archlinux-latest/archlinux-latest.tar.xz
+          sudo tar -xf archlinux-latest.tar.xz -C /tmp
 
           DATE_STR=$(TZ=$TZ date '+%Y-%m-%d %H:%M:%S %Z')
           sed -i "s/^- Wine x86-64 BCC Latest Update:.*/- Wine x86-64 BCC Latest Update: ${DATE_STR}/" README.md
