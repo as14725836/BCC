@@ -16,28 +16,63 @@ jobs:
 
       - name: Update README wine latest update date & Install depends
         run: |
+          set -e
           TZ=Asia/Shanghai
 
-          # 下载 README 中的 Archlinux Rootfs
-          wget -O archlinux-latest.tar.xz https://github.com/as14725836/BCC/releases/tag/archlinuxarm-latest
+          # 使用 GitHub API 获取最新的 release 附件下载 URL
+          echo "📡 获取最新 release 信息..."
+          API_URL="https://api.github.com/repos/as14725836/BCC/releases/tags/archlinuxarm-latest"
+          
+          # 从 API 响应中提取第一个 .tar.xz 文件的下载 URL
+          DOWNLOAD_URL=$(curl -s "$API_URL" | grep -o '"browser_download_url": "[^"]*\.tar\.xz"' | head -1 | cut -d '"' -f 4)
+          
+          if [ -z "$DOWNLOAD_URL" ]; then
+            echo "❌ 未找到 .tar.xz 附件"
+            echo "可用的 releases:"
+            curl -s "https://api.github.com/repos/as14725836/BCC/releases" | grep -E '"tag_name"|"name"' | head -10
+            exit 1
+          fi
+          
+          echo "✅ 找到下载 URL: $DOWNLOAD_URL"
+          echo "📥 下载 rootfs..."
+          wget -O archlinux-latest.tar.xz "$DOWNLOAD_URL"
+          
+          # 验证下载的文件
+          if [ ! -s "archlinux-latest.tar.xz" ]; then
+            echo "❌ 下载的文件为空"
+            exit 1
+          fi
+          
+          echo "🔍 验证文件类型:"
+          file archlinux-latest.tar.xz
+          
+          echo "📦 解压 rootfs..."
           sudo tar -xf archlinux-latest.tar.xz -C /tmp
 
           DATE_STR=$(TZ=$TZ date '+%Y-%m-%d %H:%M:%S %Z')
+          echo "📝 更新 README 日期: ${DATE_STR}"
           sed -i "s/^- Wine x86-64 BCC Latest Update:.*/- Wine x86-64 BCC Latest Update: ${DATE_STR}/" README.md
+          
+          echo "🔧 设置文件..."
           sudo chmod 777 Wine_x86-64-bcc.sh
           sudo cp -r Wine_x86-64-bcc.sh /tmp/archlinux/bin/
           sudo cp mount.sh /tmp/
 
+          echo "🔄 挂载并运行 chroot..."
           cd /tmp
           bash mount.sh mount archlinux
           sudo chroot archlinux /bin/Wine_x86-64-bcc.sh
           cd /tmp
           bash mount.sh unmount archlinux
+          
+          echo "✅ 构建完成!"
 
       - name: Package
         run: |
+          echo "📦 打包 rootfs..."
           cd /tmp
           sudo tar -I 'xz -T$(nproc)' -cvf wine-bcc.tar.xz archlinux
+          ls -lh wine-bcc.tar.xz
 
       - name: Release
         uses: softprops/action-gh-release@v2
@@ -48,6 +83,7 @@ jobs:
           tag_name: wine-bcc-latest
           body: |
             Wine x86-64 BCC rootfs
+            构建日期: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
           files: /tmp/wine-bcc.tar.xz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
