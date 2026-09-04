@@ -21,7 +21,7 @@ jobs:
 
           # 下载并解压 rootfs
           echo "📥 下载 rootfs..."
-          wget -O archlinux-latest.tar.xz https://github.com/as14725836/BCC/releases/download/archlinuxarm-latest/archlinuxarm-rootfs.tar.xz
+          wget -O archlinux-latest.tar.xz https://github.com/as14725836/BCC/releases/download/archlinux-latest/archlinux-latest.tar.xz
           sudo tar -xf archlinux-latest.tar.xz -C /tmp
 
           # 修复脚本
