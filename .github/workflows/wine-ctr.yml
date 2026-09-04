@@ -11,12 +11,15 @@ jobs:
   archlinux:
     runs-on: ubuntu-24.04
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Update README wine latest update date & Install depends
         run: |
           TZ=Asia/Shanghai
 
           # 下载 README 中的 Archlinux Rootfs
-          wget -O https://github.com/as14725836/BCC/releases/download/ubuntu2404-latest/ubuntu2404-latest.tar.xz
+          wget -O ubuntu2404-latest.tar.xz https://github.com/as14725836/BCC/releases/download/ubuntu2404-latest/ubuntu2404-latest.tar.xz
           sudo tar -xf ubuntu2404-latest.tar.xz -C /tmp
 
           DATE_STR=$(TZ=$TZ date '+%Y-%m-%d %H:%M:%S %Z')
@@ -27,7 +30,7 @@ jobs:
 
           cd /tmp
           bash mount.sh mount archlinux
-          sudo chroot archlinux /bin/Wine_x86-64-bcc.sh &&
+          sudo chroot archlinux /bin/Wine_x86-64-bcc.sh
           cd /tmp
           bash mount.sh unmount archlinux
 
@@ -58,3 +61,4 @@ jobs:
             git commit -am "chore: update Wine x86-64 BCC latest date"
             git push
           fi
+          
