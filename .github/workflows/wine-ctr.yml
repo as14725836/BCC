@@ -19,79 +19,42 @@ jobs:
           set -e
           TZ=Asia/Shanghai
 
-          # 下载 rootfs
-          echo "📡 获取最新 release 信息..."
-          DOWNLOAD_URL=$(curl -s "https://api.github.com/repos/as14725836/BCC/releases/tags/archlinuxarm-latest" | grep -o '"browser_download_url": "[^"]*\.tar\.xz"' | head -1 | cut -d '"' -f 4)
-          
-          if [ -z "$DOWNLOAD_URL" ]; then
-            echo "❌ 未找到 .tar.xz 附件"
-            exit 1
-          fi
-          
-          echo "✅ 找到下载 URL: $DOWNLOAD_URL"
+          # 下载并解压 rootfs
           echo "📥 下载 rootfs..."
-          wget -O archlinux-latest.tar.xz "$DOWNLOAD_URL"
-          
-          if [ ! -s "archlinux-latest.tar.xz" ]; then
-            echo "❌ 下载的文件为空"
-            exit 1
-          fi
-          
-          echo "🔍 验证文件类型:"
-          file archlinux-latest.tar.xz
-          
-          echo "📦 解压 rootfs..."
+          wget -O archlinux-latest.tar.xz https://github.com/as14725836/BCC/releases/download/archlinuxarm-latest/archlinuxarm-rootfs.tar.xz
           sudo tar -xf archlinux-latest.tar.xz -C /tmp
 
-          # 修复脚本格式问题
-          echo "🔧 修复脚本格式..."
-          # 转换行尾从 CRLF 到 LF
-          sed -i 's/\r$//' Wine_x86-64-bcc.sh
-          # 确保脚本有正确的 shebang
-          if ! head -1 Wine_x86-64-bcc.sh | grep -q "^#!/"; then
-            echo "#!/bin/bash" | cat - Wine_x86-64-bcc.sh > temp && mv temp Wine_x86-64-bcc.sh
-          fi
-          # 检查脚本内容
-          echo "📄 脚本内容预览:"
-          head -5 Wine_x86-64-bcc.sh
-
-          # 检查 rootfs 架构
-          echo "🔍 检查 rootfs 架构:"
-          sudo file /tmp/archlinux/bin/bash || echo "⚠️ 无法检测"
+          # 修复脚本
+          echo "🔧 修复脚本..."
+          # 确保使用 LF 行尾
+          dos2unix Wine_x86-64-bcc.sh 2>/dev/null || sed -i 's/\r$//' Wine_x86-64-bcc.sh
+          # 添加执行权限
+          chmod +x Wine_x86-64-bcc.sh
 
           DATE_STR=$(TZ=$TZ date '+%Y-%m-%d %H:%M:%S %Z')
-          echo "📝 更新 README 日期: ${DATE_STR}"
+          echo "📝 更新 README: ${DATE_STR}"
           sed -i "s/^- Wine x86-64 BCC Latest Update:.*/- Wine x86-64 BCC Latest Update: ${DATE_STR}/" README.md
           
-          echo "🔧 设置文件..."
-          sudo chmod 777 Wine_x86-64-bcc.sh
+          echo "🔧 复制文件..."
           sudo mkdir -p /tmp/archlinux/bin
           sudo cp Wine_x86-64-bcc.sh /tmp/archlinux/bin/
           sudo cp mount.sh /tmp/
 
-          echo "🔄 挂载并运行 chroot..."
+          echo "🔄 执行 chroot..."
           cd /tmp
           bash mount.sh mount archlinux
           
-          # 检查 chroot 环境
-          echo "🔍 检查 chroot 环境:"
-          sudo chroot archlinux /bin/bash -c "uname -a && ls -la /bin/bash"
+          # 使用 bash -c 执行
+          sudo chroot archlinux /bin/bash -c "cd /bin && bash Wine_x86-64-bcc.sh"
           
-          # 运行脚本
-          echo "🚀 在 chroot 中执行脚本..."
-          sudo chroot archlinux /bin/bash /bin/Wine_x86-64-bcc.sh
-          
-          cd /tmp
           bash mount.sh unmount archlinux
           
-          echo "✅ 构建完成!"
+          echo "✅ 完成!"
 
       - name: Package
         run: |
-          echo "📦 打包 rootfs..."
           cd /tmp
           sudo tar -I 'xz -T$(nproc)' -cvf wine-bcc.tar.xz archlinux
-          ls -lh wine-bcc.tar.xz
 
       - name: Release
         uses: softprops/action-gh-release@v2
@@ -102,7 +65,6 @@ jobs:
           tag_name: wine-bcc-latest
           body: |
             Wine x86-64 BCC rootfs
-            构建日期: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
           files: /tmp/wine-bcc.tar.xz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
