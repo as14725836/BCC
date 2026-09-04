@@ -7,8 +7,12 @@ permissions:
 on:
   workflow_dispatch:
     inputs:
-      rootfs_url:
-        description: "自定义 Arch Linux bootstrap URL（可留空使用默认）"
+      arch:
+        description: "目标架构（x86_64 / aarch64 / arm 等）"
+        required: false
+        default: "x86_64"
+      repo:
+        description: "仓库 URL（留空使用官方默认镜像）"
         required: false
         default: ""
   schedule:
@@ -30,11 +34,22 @@ jobs:
           DATE_STR=$(TZ=$TZ date '+%Y-%m-%d %H:%M:%S %Z')
           sed -i "s/^-\ Latest Update:.*/- Latest Update: ${DATE_STR}/" README.md
 
-      - name: Setting chroot
+      - name: Bootstrap Arch Linux
         env:
-          ROOTFS_URL: ${{ github.event.inputs.rootfs_url }}
+          ARCH: ${{ github.event.inputs.arch || 'x86_64' }}
+          REPO_URL: ${{ github.event.inputs.repo || '' }}
         run: |
-          bash -x arch-lite.sh ${{ env.ROOTFS_URL }} || exit 1
+          set -e
+          ARGS=(-a "$ARCH")
+          [[ -n "$REPO_URL" ]] && ARGS+=(-r "$REPO_URL")
+          # arch-bootstrap.sh 内部会 chroot/mknod/cp 系统文件，必须以 root 运行
+          sudo bash -x arch-bootstrap.sh "${ARGS[@]}" "$GITHUB_WORKSPACE/archlinux"
+
+      - name: Package rootfs
+        run: |
+          sudo tar -I "xz -T$(nproc) -9" \
+            -cf /tmp/archlinux-latest.tar.xz \
+            -C "$GITHUB_WORKSPACE" archlinux
 
       - name: Release
         uses: softprops/action-gh-release@v2
@@ -58,3 +73,4 @@ jobs:
             git commit -am "chore: update Archlinux latest date"
             git push
           fi
+          
