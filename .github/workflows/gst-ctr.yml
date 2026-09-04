@@ -23,7 +23,7 @@ jobs:
       - name: Setting chroot
         run: |
           cd /tmp
-          git clone https://github.com/Waim908/BCC BCC
+          git clone https://github.com/as14725836/BCC BCC
           # sudo apt update
           install -m 755 /tmp/BCC/arch-bootstrap.sh /usr/local/bin/arch-bootstrap
           # sudo apt install debootstrap -y
