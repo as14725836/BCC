@@ -108,7 +108,12 @@ get_template_repo_url() {
 configure_pacman() {
   local DEST=$1 ARCH=$2
   debug "configure DNS and pacman"
-  cp "/etc/resolv.conf" "$DEST/etc/resolv.conf"
+  # 不复制宿主机 resolv.conf（Ubuntu 里通常是 127.0.0.53/systemd-resolved），
+  # chroot 内无 systemd-resolved 会导致 DNS 解析失败；改为写入公共 DNS。
+  cat > "$DEST/etc/resolv.conf" <<'EOF'
+nameserver 8.8.8.8
+nameserver 1.1.1.1
+EOF
   SERVER=$(get_template_repo_url "$REPO_URL" "$ARCH")
   echo "Server = $SERVER" > "$DEST/etc/pacman.d/mirrorlist"
 }
