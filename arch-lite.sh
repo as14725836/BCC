@@ -1,14 +1,25 @@
-rootfsURL="${ROOTFS_URL:-https://mirror.adectra.com/archlinux/iso/2026.02.01/archlinux-bootstrap-2026.02.01-x86_64.tar.zst}"
+#!/usr/bin/env bash
+set -e
+
+# ============ 下载 rootfs（已由 aria2c 换成 wget） ============
+rootfsURL="${ROOTFS_URL:-https://geo.mirror.pkgbuild.com/iso/latest/archlinux-bootstrap-x86_64.tar.zst}"
 
 # default: GITHUB_WORKSPACE
-aria2c -s16 -x16 "$rootfsURL" || exit 1
-rootfsPath="$GITHUB_WORKSPACE/archlinux"
-mkdir "$rootfsPath"
-pkgName=$(basename $rootfsURL)
-sudo tar --strip-components=1 -xf $pkgName -C "$rootfsPath" && rm -rf $pkgName
+pkgName=$(basename "$rootfsURL")
+echo "📥 下载: $rootfsURL"
+wget -c --tries=10 --timeout=60 --waitretry=10 --retry-connrefused \
+     -O "$pkgName" "$rootfsURL" || exit 1
 
+rootfsPath="$GITHUB_WORKSPACE/archlinux"
+mkdir -p "$rootfsPath"
+
+# .tar.zst 用 --zstd；若 tar 不支持该选项，改用 -I zstd
+sudo tar --strip-components=1 --zstd -xf "$pkgName" -C "$rootfsPath" && rm -rf "$pkgName"
+
+# ============ 基础系统文件 ============
 sudo cp -r /etc/hostname "$rootfsPath/etc/hostname"
 sudo cp -r /etc/hosts "$rootfsPath/etc/hosts"
+
 # 不要直接复制宿主机 nsswitch.conf：Ubuntu 的 hosts 行含 systemd-resolved 的
 # `resolve [!UNAVAIL=return]` NSS 模块，chroot 内无 libnss_resolve 会导致 DNS 全挂。
 # 改为写入一份不含 resolve 模块的干净配置。
@@ -37,12 +48,13 @@ nameserver 8.8.4.4
 nameserver 1.1.1.1
 EOF
 
-# 写入 pacman 镜像源列表
+# ============ pacman 镜像源 ============
 sudo mkdir -p "$rootfsPath/etc/pacman.d"
+
 # 检测是否为 Arch Linux ARM（通过检查是否存在 alarm 仓库配置）
 if [ -f "$rootfsPath/etc/pacman.d/mirrorlist-arm" ] || echo "$rootfsURL" | grep -qi "archlinuxarm"; then
   echo "Detected Arch Linux ARM, using ARM mirrors..."
-  sudo tee $rootfsPath/etc/pacman.d/mirrorlist << 'EOF'
+  sudo tee "$rootfsPath/etc/pacman.d/mirrorlist" >/dev/null << 'EOF'
 # Arch Linux ARM mirrors
 Server = http://mirror.archlinuxarm.org/$arch/$repo
 Server = http://eu.mirror.archlinuxarm.org/$arch/$repo
@@ -54,10 +66,10 @@ else
   sudo tee "$rootfsPath/etc/pacman.d/mirrorlist" < mirrorlist >/dev/null
 fi
 
-# 挂载必要的虚拟文件系统
+# ============ 挂载虚拟文件系统 ============
 bash mount.sh mount "$rootfsPath"
 
-# 按照 arch-bootstrap.sh 的 configure_minimal_system 调整 pacman 配置，
+# ============ pacman 配置适配 CI ============
 # 关闭 DownloadUser、CheckSpace 和签名校验，适配 CI 环境
 sudo sed -i 's/^DownloadUser/#DownloadUser/' "$rootfsPath/etc/pacman.conf" || true
 sudo sed -i "s/^[[:space:]]*\\(CheckSpace\\)/# \\1/" "$rootfsPath/etc/pacman.conf" || true
@@ -72,7 +84,7 @@ sudo chroot "$rootfsPath" /bin/pacman -Scc --noconfirm || true
 # 退出后卸载
 bash mount.sh unmount "$rootfsPath"
 
-# 打包前清理 rootfs 内的缓存，减小体积
+# ============ 打包前清理 ============
 sudo rm -rf "$rootfsPath/var/cache/pacman/pkg" "$rootfsPath/var/lib/pacman/sync"
 
 sudo tar -I "xz -T$(nproc) -9" -cf /tmp/archlinux-latest.tar.xz archlinux || exit 1
